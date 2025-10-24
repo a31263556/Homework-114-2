@@ -1,51 +1,37 @@
 import requests
 from bs4 import BeautifulSoup
 import json
-import re
+import os
 
-URL = "https://www.books.com.tw/web/sys_saletopb/books/19?attribute=30"
+url = "https://books.toscrape.com/catalogue/category/books/travel_2/index.html"
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-}
+response = requests.get(url)
+response.encoding = "utf-8"
 
-resp = requests.get(URL, headers=HEADERS, timeout=10)
-resp.raise_for_status()
+soup = BeautifulSoup(response.text, "lxml")
 
-soup = BeautifulSoup(resp.content, "lxml")
+books = []
+items = soup.select("article.product_pod")
 
-results = []
+for item in items:
+    title = item.h3.a["title"]
+    price = item.select_one(".price_color").text
+    stock = item.select_one(".instock.availability").text.strip()
+    link = item.h3.a["href"]
 
-candidates = soup.select(".mod.type02_list li") or soup.select(".type02_list li") or soup.select(".goodsitem") or soup.select("li")
-
-count = 0
-for node in candidates:
-    if count >= 20:
-        break
-
-    title = ""
-    t = node.select_one("h4 a") or node.select_one("a[title]") or node.find("a")
-    if t:
-        title = t.get("title") or t.get_text(strip=True)
-
-    if not title:
-        continue
-
-    price = ""
-    ptag = node.select_one(".price") or node.select_one(".b_price") or node.select_one(".price_a") or node.find("span", class_="price")
-    if ptag:
-        price = ptag.get_text(strip=True)
-    else:
-        text = node.get_text(" ", strip=True)
-        m = re.search(r'NT\$?\s*[\d,]+', text)
-        if m:
-            price = m.group(0)
-
-    count += 1
-    results.append({
-        "rank": count,
+    books.append({
         "title": title,
-        "price": price
+        "price": price,
+        "stock": stock,
+        "link": "https://books.toscrape.com/catalogue/" + link
     })
 
-print(json.dumps(results, ensure_ascii=False, indent=2))
+for book in books:
+    print(book)
+
+output_file = "books_data.json"
+with open(output_file, "w", encoding="utf-8") as f:
+    json.dump(books, f, ensure_ascii=False, indent=4)
+
+print(f"\n 已儲存 {len(books)} 筆資料到 {output_file}")
+print(f"檔案位置：{os.path.abspath(output_file)}")
